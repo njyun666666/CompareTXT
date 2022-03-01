@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace CompareTXT
@@ -19,8 +20,8 @@ namespace CompareTXT
 			}
 
 			DateTime startTime = DateTime.Now;
-			Console.WriteLine($"start {startTime}");
-			
+			Console.WriteLine($"start {startTime.ToString("yyyy-MM-dd HH:mm:ss")}");
+
 
 			string pathOld = args[0];
 			string pathNew = args[1];
@@ -49,7 +50,10 @@ namespace CompareTXT
 							 ).ToList();
 
 			List<Task> tasks = new List<Task>();
-			StringBuilder result = new StringBuilder("檔名,比對結果\n");
+			StringBuilder result = new StringBuilder();
+
+			result.Append("<style>table{border-collapse: collapse;}th,td{border:1px solid}</style>");
+			result.Append("<table><tr><th>檔名</th><th>比對結果</th></tr>");
 
 
 			foreach (var item in targetList)
@@ -65,6 +69,11 @@ namespace CompareTXT
 						if (compareResult.Errors.Any())
 						{
 							item.Errors.AddRange(compareResult.Errors);
+						}
+
+						if (compareResult.RowErrors.Any())
+						{
+							item.RowErrors.AddRange(compareResult.RowErrors);
 						}
 					}
 
@@ -86,10 +95,11 @@ namespace CompareTXT
 
 			foreach (var item in filesExcept)
 			{
-				result.Append($"{item},多餘檔案\n");
+				result.Append($"<tr><td>{item}</td><td>多餘檔案</td></tr>");
 			}
 
 
+			result.Append("</table>");
 
 			string savePath = $"result";
 			if (!Directory.Exists(savePath))
@@ -97,7 +107,7 @@ namespace CompareTXT
 				Directory.CreateDirectory(savePath);
 			}
 
-			string fileSavePath = $@"{savePath}/compareTXT-{DateTime.Now.ToString("yyyyMMdd-HHmmss")}.csv";
+			string fileSavePath = $@"{savePath}/compareTXT-{DateTime.Now.ToString("yyyyMMdd-HHmmss")}.html";
 			FileStream fs = new FileStream(fileSavePath, FileMode.CreateNew);
 			
 			using (StreamWriter sw = new StreamWriter(fs, Encoding.UTF8))
@@ -135,8 +145,10 @@ namespace CompareTXT
 		{
 			CompareModel result = new CompareModel();
 
-			var textOld = File.ReadAllText(fileOld).Split("\n");
-			var textNew = File.ReadAllText(fileNew).Split("\n");
+			string pattern = "\\r\\n|\\n|\\r";
+			string[] textOld = Regex.Split(File.ReadAllText(fileOld), pattern, RegexOptions.IgnoreCase);
+			string[] textNew = Regex.Split(File.ReadAllText(fileNew), pattern, RegexOptions.IgnoreCase);
+
 			result.OldLength = textOld.Length;
 			result.NewLength = textNew.Length;
 
@@ -150,22 +162,27 @@ namespace CompareTXT
 					if (text != textNew[i])
 					{
 						errorRow.Add(i + 1);
+
+						string Text2HtmlOut = CompuMaster.Text.Diffs.DumpDiffAsHtml(text, textNew[i], CompuMaster.Text.Diffs.EncodingRequirement.TextInputToBeEncodedIntoHtmlBeforeOutput);
+						result.RowErrors.Add(new RowErrorModel()
+						{
+							RowNumber = i,
+							OldContent = text,
+							NewContent = textNew[i],
+							Compare = Text2HtmlOut
+						});
 					}
 				}
 
 				if (errorRow.Count >= 10)
 				{
-					result.Errors.Add($"比對失敗行號: {string.Join(",", errorRow)} 超過10筆停止比對");
+					result.Errors.Add($"超過10行錯誤，停止比對");
 					return result;
 				}
 
 				i++;
 			}
 
-			if (errorRow.Any())
-			{
-				result.Errors.Add("比對失敗行號: " + string.Join(",", errorRow));
-			}
 			return result;
 		}
 	}
