@@ -86,7 +86,35 @@ namespace CompareTXT
 
 			foreach (var item in targetList)
 			{
-				result.Append(item.Result);
+				List<string> errors = item.Errors;
+				StringBuilder rowErrorTable = new StringBuilder();
+
+				if (string.IsNullOrWhiteSpace(item.NewPath))
+				{
+					errors.Add("缺少檔案");
+				}
+
+				if (item.OldLength != item.NewLength)
+				{
+					errors.Add($"行數不符, 舊行數: {item.OldLength}, 新行數: {item.NewLength}");
+				}
+
+				if (item.RowErrors.Any())
+				{
+					rowErrorTable.Append("<table>");
+					rowErrorTable.Append($"<tr><td>行號</td><td></td><td>內容</td></tr>");
+
+					foreach (var row in item.RowErrors)
+					{
+						rowErrorTable.Append($"<tr><td rowspan='3'>{row.RowNumber}</td><td>舊</td><td>{row.OldContent.Replace(" ", "&nbsp;")}</td></tr>");
+						rowErrorTable.Append($"<tr><td>新</td><td>{row.NewContent.Replace(" ", "&nbsp;")}</td></tr>");
+						rowErrorTable.Append($"<tr><td>差異</td><td>{row.Compare}</td></tr>");
+					}
+
+					rowErrorTable.Append("</table>");
+				}
+
+				result.Append($"<tr><td>{item.FileName}</td><td>{string.Join("<br>", errors)}<br>{rowErrorTable}</td></tr>");
 			}
 
 
